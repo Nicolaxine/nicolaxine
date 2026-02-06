@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chasse au Trésor AR pour tes 18 ans !</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>  <!-- Dernière version d'A-Frame -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+</head>
+<body style="margin: 0; overflow: hidden;">
+  <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+    <a-camera gps-camera rotation-reader></a-camera>  <!-- Active la caméra AR et le GPS -->
+
+    <!-- Énigmme 1 : Près de l'entrée du jardin (remplacez par vos coords réelles) -->
+    <a-entity gps-entity-place="latitude: 44.8299316; longitude: 0.1447571;" scale="3 3 3" look-at="[gps-camera]">
+      <a-sphere color="red" radius="1"></a-sphere>  <!-- Une sphère rouge AR -->
+      <a-text value="Indice 1: Cherche sous le grand arbre !" color="white" position="0 1.5 0"></a-text>
+    </a-entity>
+
+    <!-- Énigmme 2 : Sous le grand arbre -->
+    <a-entity gps-entity-place="latitude: 44.123789; longitude: 0.123789;" scale="4 4 4" look-at="[gps-camera]">
+      <a-cylinder color="green" radius="1" height="2"></a-cylinder>  <!-- Un cylindre vert AR -->
+      <a-text value="Indice 2: Direction le banc !" color="black" position="0 2 0"></a-text>
+    </a-entity>
+
+    <!-- Énigmme 3 : Près du banc (le trésor final) -->
+    <a-entity gps-entity-place="latitude: 44.124012; longitude: 0.124012;" scale="5 5 5" look-at="[gps-camera]" click-handler>
+      <a-box color="gold" depth="2" height="2" width="2"></a-box>  <!-- Une boîte dorée AR -->
+      <a-text value="Félicitations ! Le trésor est ici." color="blue" position="0 2.5 0"></a-text>
+    </a-entity>
+  </a-scene>
+
+  <!-- JavaScript pour interactions clic -->
+  <script>
+    AFRAME.registerComponent('click-handler', {
+      init: function () {
+        this.el.addEventListener('click', function () {
+          alert('Bravo ! Indice révélé : Le cadeau est caché sous la boîte AR !');  // Popup ou action sur clic
+          // Vous pouvez ajouter plus : changer de scène, jouer un son, etc.
+        });
+      }
+    });
+  </script>
+</body>
+</html>
