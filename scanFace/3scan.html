@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nicolaxine - Laboratoire High-Tech</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Conteneur global pour centrer tout le contenu */
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Fond futuriste avec dégradé vert sombre */
+    body {
+      background: linear-gradient(135deg, #0a1a1a, #0f3d3d);
+      color: white;
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* En-tête avec effet lumineux */
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      width: 100%;
+    }
+
+    .glow-text {
+      font-size: 2.5rem;
+      color: #00ffaa;
+      text-shadow: 0 0 10px #00ffaa, 0 0 20px rgba(0, 255, 170, 0.3);
+      margin: 0;
+    }
+
+    .subtext {
+      display: block;
+      font-size: 0.9rem;
+      color: rgba(0, 255, 170, 0.7);
+      margin-top: 5px;
+    }
+
+    /* Conteneur principal du laboratoire */
+    .lab-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      background: rgba(10, 30, 30, 0.7);
+      border: 2px solid rgba(0, 255, 170, 0.3);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(0, 255, 170, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Panneau de la caméra */
+    .camera-panel {
+      width: 100%;
+      height: 400px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      margin: 0 auto 20px;
+    }
+
+    /* Overlay pour le panneau de la caméra */
+    .scan-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 255, 170, 0.1) 0%,
+        rgba(0, 255, 170, 0.05) 50%,
+        rgba(0, 255, 170, 0.1) 100%
+      );
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+/* Ligne de scan */
+.scan-line {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  width: 100%;
+  height: 4px; /* Épaisseur augmentée */
+  background: #00ffaa; /* Couleur verte lumineuse */
+  box-shadow: 0 0 10px rgba(0, 255, 170, 0.8); /* Effet de lueur */
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+/* Animation de la ligne de scan */
+@keyframes scanAnimation {
+  0% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105%); /* Balaye tout l'écran */
+    opacity: 1;
+  }
+}
+
+
+    /* Boutons style "laboratoire" */
+    .lab-button {
+      background: linear-gradient(90deg, #00b894, #00d2d3);
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 30px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+      margin: 10px auto;
+      display: block;
+    }
+
+    .lab-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(0, 200, 255, 0.6);
+    }
+
+    /* Indicateur de statut */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 15px;
+      font-size: 0.9rem;
+      color: rgba(0, 255, 170, 0.8);
+    }
+
+    .status-light {
+      width: 12px;
+      height: 12px;
+      background: #00ffaa;
+      border-radius: 50%;
+      margin-right: 10px;
+      box-shadow: 0 0 10px rgba(0, 255, 170, 0.5);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Conteneur du graphique */
+    .chart-container {
+      width: 100%;
+      height: 300px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      padding: 10px;
+      margin: 20px auto 0;
+    }
+
+    /* Masquer la vidéo si la caméra n'est pas disponible */
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="glow-text">NICOLAXINE <span class="subtext">Laboratoire d'Analyse Avancée</span></h1>
+    </header>
+
+    <div class="lab-container">
+      <div class="camera-panel">
+        <div class="scan-overlay"></div>
+        <video id="video" autoplay muted></video>
+        <div class="scan-line"></div>
+      </div>
+
+      <div class="controls">
+        <button id="scan-button" class="lab-button">Lancer le Scan</button>
+        <div class="status-indicator">
+          <div class="status-light"></div>
+          <span>Statut : En attente</span>
+        </div>
+      </div>
+
+      <!-- Graphique en temps réel -->
+      <div class="chart-container">
+        <canvas id="realtime-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Son de scan -->
+  <audio id="scan-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-3011.mp3" preload="auto"></audio>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script>
+    // Initialisation de la caméra
+    async function setupCamera() {
+      try {
+        const video = document.getElementById('video');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        console.error("Erreur d'accès à la caméra :", err);
+        alert("Impossible d'accéder à la caméra. Vérifiez les permissions.");
+      }
+    }
+
+document.getElementById('scan-button').addEventListener('click', function() {
+  const statusText = document.querySelector('.status-indicator span');
+  const statusLight = document.querySelector('.status-light');
+  const scanSound = document.getElementById('scan-sound');
+  const scanLine = document.querySelector('.scan-line');
+  const scanOverlay = document.querySelector('.scan-overlay');
+
+  // Jouer le son de scan
+  scanSound.currentTime = 0;
+  scanSound.play();
+
+  // Activer l'overlay et la ligne de scan
+  scanOverlay.style.opacity = '1';
+  scanLine.style.opacity = '1';
+  scanLine.style.animation = 'scanAnimation 1.5s linear forwards'; /* Durée réduite pour un effet plus dynamique */
+
+  statusText.textContent = 'Statut : Scan en cours...';
+  statusLight.style.background = '#ff4757'; // Rouge pendant le scan
+
+  setTimeout(() => {
+    statusText.textContent = 'Statut : Scan terminé';
+    statusLight.style.background = '#2ed573'; // Vert après le scan
+    scanOverlay.style.opacity = '0';
+    scanLine.style.opacity = '0';
+    scanLine.style.animation = 'none';
+  }, 1500); // Durée du scan ajustée
+});
+
+
+    // Initialisation du graphique
+    const ctx = document.getElementById('realtime-chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Niveau de détection',
+          data: [],
+          borderColor: '#00ffaa',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: true, max: 100 } },
+        plugins: { legend: { labels: { color: 'white' } } }
+      }
+    });
+
+    // Simulation de données en temps réel
+    function updateChart() {
+      const now = new Date();
+      chart.data.labels.push(now.toLocaleTimeString());
+      chart.data.datasets[0].data.push(Math.floor(Math.random() * 100));
+
+      if (chart.data.labels.length > 10) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+
+      chart.update();
+    }
+
+    setInterval(updateChart, 1000);
+
+    // Charger la caméra au démarrage
+    window.addEventListener('DOMContentLoaded', setupCamera);
+  </script>
+</body>
+</html>

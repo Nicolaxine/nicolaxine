@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Caméra</title>
+</head>
+<body>
+  <video id="video" autoplay playsinline muted style="width:100%; max-height:80vh;"></video>
+  <div id="info">OUVERTURE CAMÉRA...</div>
+
+  <script>
+    const video = document.getElementById('video');
+    const info = document.getElementById('info');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      .then(stream => {
+        video.srcObject = stream;
+        info.textContent = "CAMÉRA OK !";
+      })
+      .catch(err => {
+        info.textContent = "ERREUR : " + err.message;
+        info.style.color = "red";
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
