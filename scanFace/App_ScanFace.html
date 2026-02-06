@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0c11">
+  <link rel="shortcut icon" href="http://freenicox.free.fr/Nicolaxine/faviconBoite.ico" title="Nicolaxine" />
+  <link rel="icon" type="image/gif" href="http://freenicox.free.fr/Nicolaxine/faviconBoite.gif" />
+  <title>NICOLAXINE — FACIAL SCAN v3.1</title>
+  <style>
+    :root {
+      --bg: #0a0c11;
+      --accent: #ffffff;
+      --glow: #0f0;
+      --text: #e8ebf1;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: monospace;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      touch-action: manipulation;
+    }
+
+    header {
+      height: 60px;
+      background: #141821;
+      border-bottom: 1px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      color: var(--accent);
+      text-shadow: 0 0 8px var(--accent);
+      flex-shrink: 0;
+    }
+
+    #video-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+    }
+
+    video, canvas {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+
+    canvas { pointer-events: none; }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 30%, rgba(176,64,224,0.1) 100%);
+    }
+
+    .scan-line {
+      position: absolute;
+      width: 100%;
+      height: 3px;
+      background: var(--glow);
+      box-shadow: 0 0 12px var(--glow);
+      opacity: 0.7;
+      animation: scan 4s linear infinite;
+    }
+
+    @keyframes scan {
+      0% { top: -10px; }
+      100% { top: 100%; }
+    }
+
+    #info {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      padding: 12px 24px;
+      border: 1px solid var(--glow);
+      border-radius: 6px;
+      text-align: center;
+      min-width: 80vw;
+      z-index: 10;
+    }
+
+    .match { color: var(--glow); font-size: 1.4rem; margin: 8px 0; }
+    .data { color: #a8b0bd; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <header>BOXON DE NICOLAXINE — RECONNAISSANCE FACIALE</header>
+
+  <div id="video-container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="overlay"></div>
+    <div class="scan-line"></div>
+
+    <div id="info">
+      <div class="match">SCAN EN COURS...</div>
+      <div class="data">IDENTITÉ : ———</div>
+      <div class="data">CORRESPONDANCE : — %</div>
+      <div class="data">STATUT : ANALYSE...</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const info = document.getElementById('info');
+    const matchEl = info.querySelector('.match');
+    const dataEls = info.querySelectorAll('.data');
+
+    // Profils fake (personnalise ici avec tes noms Nicolaxine)
+    const fakeProfiles = [
+      { name: "Pr Heegrek", match: 94, status: "ACCÈS AUTORISÉ — NIVEAU 4" },
+      { name: "Dr Hiksse", match: 89, status: "ACCÈS AUTORISÉ — NIVEAU 3" },
+      { name: "Agent X-17", match: 76, status: "SURVEILLANCE ACTIVE" },
+      { name: "INCONNU", match: 12, status: "ACCÈS REFUSÉ" }
+    ];
+
+    // Accès caméra frontale (autonome sur mobile)
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        video.addEventListener('loadedmetadata', () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          drawFakeScan();
+        });
+      })
+      .catch(err => {
+        matchEl.textContent = "ACCÈS CAMÉRA REFUSÉ";
+        matchEl.style.color = "#f44";
+      });
+
+    function drawFakeScan() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Cadre visage fake (adapté à l'écran mobile)
+      ctx.strokeStyle = 'var(--glow)';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'var(--glow)';
+      ctx.shadowBlur = 15;
+
+      const x = canvas.width * 0.25;
+      const y = canvas.height * 0.15;
+      const w = canvas.width * 0.5;
+      const h = canvas.height * 0.7;
+      ctx.strokeRect(x, y, w, h);
+
+      // Points landmarks fake
+      ctx.fillStyle = 'var(--glow)';
+      [[x+20, y+40], [x+w-20, y+40], [x+w/2, y+h-30]].forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 6, 0, Math.PI*2);
+        ctx.fill();
+      });
+
+      // Lignes de scan aléatoires
+      ctx.strokeStyle = 'rgba(0,255,0,0.4)';
+      for (let i = 0; i < 8; i++) {
+        const py = y + Math.random() * h;
+        ctx.beginPath();
+        ctx.moveTo(x, py);
+        ctx.lineTo(x + w, py);
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(drawFakeScan);
+    }
+
+    // Résultat aléatoire après 6-12s (simule une analyse)
+    setTimeout(() => {
+      const profile = fakeProfiles[Math.floor(Math.random() * fakeProfiles.length)];
+      matchEl.textContent = `CORRESPONDANCE : ${profile.match}%`;
+      dataEls[0].textContent = `IDENTITÉ : ${profile.name}`;
+      dataEls[1].textContent = `STATUT : ${profile.status}`;
+      if (profile.match > 80) {
+        matchEl.style.color = '#0f0';
+      } else if (profile.match > 50) {
+        matchEl.style.color = '#ff0';
+      } else {
+        matchEl.style.color = '#f44';
+      }
+    }, 6000 + Math.random() * 6000);
+  </script>
+</body>
+</html>
