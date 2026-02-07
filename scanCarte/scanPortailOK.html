@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0c11">
+  <title>NICOLAXINE — PROTOCOLE DE SCAN FACIAL</title>
+
+  <!-- face-api.js depuis CDN (stable) -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    :root {
+      --fond: #0a0c11;
+      --vert-pharma: #40e070;
+      --vert-fonce: #2e7d32;
+      --vert-clair: #a5d6a7;
+      --glow: rgba(64, 224, 112, 0.7);
+      --texte: #e8f5e9;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      height: 100dvh;
+      background: var(--fond);
+      color: var(--texte);
+      font-family: monospace;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      height: 60px;
+      background: #0f1a0f;
+      border-bottom: 1px solid var(--vert-pharma);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      letter-spacing: 2px;
+      color: var(--vert-pharma);
+      text-shadow: 0 0 12px var(--glow);
+      flex-shrink: 0;
+    }
+
+    .container {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+
+    #video, #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #overlay { pointer-events: none; }
+
+    #info {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 26, 15, 0.88);
+      border: 1px solid var(--vert-pharma);
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 1.3rem;
+      color: var(--vert-pharma);
+      text-shadow: 0 0 10px var(--glow);
+      text-align: center;
+      min-width: 320px;
+      z-index: 10;
+    }
+
+    .btn {
+      position: absolute;
+      top: 70px;
+      padding: 8px 16px;
+      background: rgba(15, 26, 15, 0.9);
+      border: 1px solid var(--vert-pharma);
+      border-radius: 6px;
+      color: var(--vert-pharma);
+      cursor: pointer;
+      z-index: 10;
+      font-size: 1rem;
+    }
+
+    #relancer { left: 20px; }
+    #switchCam { right: 20px; }
+
+    .detected-frame {
+      stroke: var(--vert-pharma);
+      stroke-width: 4;
+      animation: pulse-pharma 2.5s infinite ease-in-out;
+    }
+
+    @keyframes pulse-pharma {
+      0%, 100% { opacity: 1; stroke-width: 4; }
+      50% { opacity: 0.7; stroke-width: 6; }
+    }
+
+    .landmark-point {
+      fill: var(--vert-clair);
+      stroke: var(--vert-pharma);
+      stroke-width: 1.5;
+      animation: blink-point 1.8s infinite;
+    }
+
+    @keyframes blink-point {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+	
+			.footer-back-btn {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	margin: 0;
+	font-size: 1.4rem;
+	line-height: 1;
+	align-items: center;
+	justify-content: center;
+	background: #1f2430;
+	color: var(--text);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: all 0.2s;
+	min-width: unset;
+}
+
+.footer-back-btn:hover {
+	background: #2a3242;
+}
+	
+		#btn-fullscreen {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	margin: 0;
+	font-size: 1.4rem;
+	align-items: center;
+	justify-content: center;
+	background: #1f2430;
+	color: var(--text);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: all 0.2s;
+	min-width: unset;
+	}
+
+	#btn-fullscreen:hover {
+	background: #2a3242;
+	}
+
+	#btn-fullscreen:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+	}
+
+	#btn-refresh {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	margin: 0;
+	font-size: 1.4rem;
+	line-height: 1;
+	align-items: center;
+	justify-content: center;
+	background: #1f2430;
+	color: var(--text);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: all 0.2s;
+	min-width: unset;
+	}
+
+	#btn-refresh:hover {
+	background: #2a3242;
+	}
+
+	#btn-refresh:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+	}
+  </style>
+</head>
+<body>
+
+  <header><button id="btn-fullscreen">💻</button>BOXON DE NICOLAXINE — IDENTIFICATION v7.2
+    <button id="btn-refresh" onclick="window.location.href = window.location.pathname + '?refresh=' + Date.now()">🖲️</button>
+  <button class="footer-back-btn" id="btn-retour-footer">↩️</button>
+  </header>
+
+  <div class="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <div id="info" class="loading">CHARGEMENT DU PROTOCOLE...</div>
+
+    <button id="relancer" class="btn">Relancer Scan</button>
+    <button id="switchCam" class="btn">Caméra arrière</button>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('overlay');
+    const info = document.getElementById('info');
+    const relancerBtn = document.getElementById('relancer');
+    const switchCamBtn = document.getElementById('switchCam');
+
+    let usingFront = true;
+    let detectionCount = 0;
+    const DETECTION_THRESHOLD = 25; // ~4 secondes à 150ms/frame
+    const REDIRECT_URL = "http://freenicox.free.fr/Nicolaxine/ApplicationNicolaxine/Carte_Portail_Tri-DimensionnelOK.html"; // ← change selon besoin
+
+    // Chemin local des weights
+    const weightsPath = '.';
+
+    // Son bip médical
+    let audioCtx = null;
+    function playBipMedical() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+    }
+
+    // Chargement modèles
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(weightsPath),
+      faceapi.nets.faceLandmark68Net.loadFromUri(weightsPath)
+    ])
+    .then(() => {
+      info.textContent = "PROTOCOLE ACTIVÉ — ANALYSE EN COURS...";
+      info.classList.remove('loading');
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+        .then(stream => video.srcObject = stream)
+        .catch(err => {
+          info.textContent = "ACCÈS CAMÉRA REFUSÉ : " + err.message;
+          info.style.color = "#ff6666";
+        });
+    })
+    .catch(err => {
+      info.textContent = "ÉCHEC PROTOCOLE : " + err.message;
+      info.style.color = "#ff6666";
+      console.error(err);
+    });
+
+    // Scan en boucle
+    video.addEventListener('play', () => {
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      setInterval(async () => {
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks();
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (detections.length > 0) {
+          playBipMedical(); // bip médical sur détection
+          detectionCount++;
+
+          const fakeMatch = Math.floor(Math.random() * 19) + 80;
+          const fakeNames = ["Pr. Heegrek", "Dr. Hiksse", "Infirmière Z", "Infirmier Z", "Sujet Inconnu"];
+          const randomName = fakeNames[Math.floor(Math.random() * fakeNames.length)];
+
+          info.textContent = `SUJET IDENTIFIÉ : ${randomName} — MATCH ${fakeMatch}% — ACCÈS AUTORISÉ`;
+          info.style.color = getComputedStyle(document.documentElement)
+  .getPropertyValue('--vert-pharma')
+  .trim();
+
+          detections.forEach(detection => {
+            const box = detection.detection.box;
+            ctx.strokeStyle = 'var(--vert-pharma)';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = 'var(--glow)';
+            ctx.shadowBlur = 15;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+            const landmarks = detection.landmarks;
+            landmarks.positions.forEach(pt => {
+              ctx.fillStyle = 'var(--vert-clair)';
+              ctx.strokeStyle = 'var(--vert-pharma)';
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+            });
+          });
+
+          // Redirection après seuil stable
+          if (detectionCount >= DETECTION_THRESHOLD) {
+            info.textContent = "SUJET CONFIRMÉ — OUVERTURE PORTAIL IMMINENTE...";
+            setTimeout(() => {
+              window.location.href = REDIRECT_URL;
+            }, 2000);
+          }
+        } else {
+          detectionCount = 0;
+          info.textContent = "SUJET NON DÉTECTÉ — ANALYSE EN COURS...";
+          info.style.color = "#a5d6a7";
+        }
+      }, 150);
+    });
+
+    // Bouton Relancer
+    relancerBtn.addEventListener('click', () => {
+      detectionCount = 0;
+      info.textContent = "NOUVELLE ANALYSE EN COURS...";
+      info.style.color = "#a5d6a7";
+    });
+
+    // Bouton basculer caméra
+    switchCamBtn.addEventListener('click', () => {
+      usingFront = !usingFront;
+      switchCamBtn.textContent = usingFront ? "Caméra arrière" : "Caméra frontale";
+
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: usingFront ? "user" : "environment" }
+      }).then(stream => video.srcObject = stream);
+    });
+	
+			document.getElementById('btn-fullscreen').onclick = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+		};
+		
+		  document.getElementById('btn-retour-footer').onclick = () => {
+  // Option 1 : Retour historique (comme le bouton back du navigateur)
+			history.back();
+			 };
+
+  </script>
+</body>
+</html>
