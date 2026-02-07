@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0c11">
+  <title>NICOLAXINE — LECTEUR DE BADGE</title>
+
+  <style>
+    :root {
+      --fond: #0a0c11;
+      --panneau: #141821;
+      --vert-heegrek: #40e070;
+      --vert-fonce-heegrek: #2e7d32;
+      --jaune-hiksse: #f4c430;
+      --jaune-fonce-hiksse: #c29e26;
+      --glow-green: rgba(64, 224, 112, 0.6);
+      --glow-yellow: rgba(244, 196, 48, 0.6);
+      --texte: #e8f5e9;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      height: 100dvh;
+      background: var(--fond);
+      color: var(--texte);
+      font-family: monospace;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      height: 60px;
+      background: var(--panneau);
+      border-bottom: 1px solid var(--vert-heegrek);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      letter-spacing: 2px;
+      color: var(--vert-heegrek);
+      text-shadow: 0 0 10px var(--glow-green);
+      flex-shrink: 0;
+    }
+
+    .container {
+      flex: 1;
+      position: relative;
+    }
+
+    #video, #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #overlay { pointer-events: none; }
+
+    #scan-bar {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      background: linear-gradient(to right, transparent, var(--vert-heegrek), transparent);
+      box-shadow: 0 0 20px var(--glow-green);
+      animation: scan-down 5s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes scan-down {
+      0% { top: -10px; }
+      100% { top: 100%; }
+    }
+
+    #info {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,26,15,0.88);
+      border: 1px solid var(--vert-heegrek);
+      border-radius: 8px;
+      padding: 14px 28px;
+      font-size: 1.4rem;
+      color: var(--vert-heegrek);
+      text-shadow: 0 0 10px var(--glow-green);
+      text-align: center;
+      min-width: 340px;
+      z-index: 10;
+    }
+
+    #overlay-message {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,12,17,0.96);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-size: 3rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 40px;
+    }
+
+    #overlay-message.visible {
+      display: flex;
+    }
+
+    #overlay-message.heegrek { color: var(--vert-heegrek); text-shadow: 0 0 20px var(--glow-green); }
+    #overlay-message.hiksse { color: var(--jaune-hiksse); text-shadow: 0 0 20px var(--glow-yellow); }
+  </style>
+</head>
+<body>
+
+  <header>NICOLAXINE — LECTEUR DE BADGE SÉCURISÉ</header>
+
+  <div class="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div id="scan-bar"></div>
+    <div id="info">PRÉSENTEZ VOTRE BADGE DEVANT LA CAMÉRA</div>
+    <div id="overlay-message">ACCÈS AUTORISÉ</div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const info = document.getElementById('info');
+    const overlayMsg = document.getElementById('overlay-message');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      .then(stream => video.srcObject = stream)
+      .catch(err => info.textContent = "Caméra refusée : " + err.message);
+
+    video.addEventListener('play', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+
+      setInterval(() => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Zone centrale d'analyse (rectangle au milieu)
+        const sampleSize = 120;
+        const centerX = Math.floor(canvas.width / 2);
+        const centerY = Math.floor(canvas.height / 2);
+        const imageData = ctx.getImageData(centerX - sampleSize/2, centerY - sampleSize/2, sampleSize, sampleSize).data;
+
+        let greenScore = 0;
+        let yellowScore = 0;
+
+        for (let i = 0; i < imageData.length; i += 4) {
+          const r = imageData[i];
+          const g = imageData[i+1];
+          const b = imageData[i+2];
+
+          // Vert Heegrek : vert dominant, peu de rouge/bleu
+          if (g > 140 && g > r * 1.4 && g > b * 1.4) greenScore++;
+          // Jaune Hiksse : jaune/orangé, rouge et vert équilibrés, bleu faible
+          if (r > 170 && g > 150 && Math.abs(r - g) < 70 && b < 130) yellowScore++;
+        }
+
+        const total = sampleSize * sampleSize;
+
+        if (greenScore / total > 0.30) {
+          info.textContent = "BADGE DÉTECTÉ — PR. HEEGREGK — NIVEAU 4";
+          info.style.color = 'var(--vert-heegrek)';
+          showAuthorized("PR. HEEGREGK — ACCÈS NIVEAU 4 CONFIRMÉ", 'var(--vert-heegrek)');
+        }
+        else if (yellowScore / total > 0.30) {
+          info.textContent = "BADGE DÉTECTÉ — DR. HIKSKSSE — NIVEAU 3";
+          info.style.color = 'var(--jaune-hiksse)';
+          showAuthorized("DR. HIKSKSSE — ACCÈS NIVEAU 3 CONFIRMÉ", 'var(--jaune-hiksse)');
+        }
+      }, 400);
+    });
+
+    function showAuthorized(message, color) {
+      overlayMsg.textContent = message;
+      overlayMsg.style.color = color;
+      overlayMsg.classList.add('visible');
+
+      // Bip autorisation
+      const audio = new AudioContext();
+      const osc = audio.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, audio.currentTime);
+      osc.frequency.linearRampToValueAtTime(800, audio.currentTime + 0.3);
+      const gain = audio.createGain();
+      osc.connect(gain);
+      gain.connect(audio.destination);
+      gain.gain.setValueAtTime(0.25, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.6);
+      osc.start();
+      osc.stop(audio.currentTime + 0.6);
+
+      setTimeout(() => {
+        overlayMsg.classList.remove('visible');
+        setTimeout(() => {
+          window.location.href = "http://freenicox.free.fr/Nicolaxine/ApplicationNicolaxine/Carte_Portail_Tri-DimensionnelOK.html";
+        }, 1500);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
