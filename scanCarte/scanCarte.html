@@ -9,10 +9,7 @@
   <meta name="theme-color" content="#0a0c11">
   <link rel="shortcut icon" href="http://freenicox.free.fr/Nicolaxine/faviconBoite.ico" title="Nicolaxine" />
   <link rel="icon" type="image/gif" href="http://freenicox.free.fr/Nicolaxine/faviconBoite.gif" />
-  <title>NICOLAXINE — LECTEUR DE BADGE v2</title>
-
-  <!-- Tesseract.js pour reconnaissance texte (OCR) -->
-  <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
+  <title>NICOLAXINE — LECTEUR DE BADGE</title>
 
   <style>
     :root {
@@ -25,6 +22,7 @@
       --glow-green: rgba(64, 224, 112, 0.6);
       --glow-yellow: rgba(244, 196, 48, 0.6);
       --texte: #e8f5e9;
+      --cadre: rgba(64, 224, 112, 0.4);
     }
 
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -68,14 +66,42 @@
 
     #overlay { pointer-events: none; }
 
+    /* CADRE FIXE VISIBLE AU CENTRE */
+    #cadre-scan {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 360px;
+      height: 220px;
+      border: 3px dashed var(--cadre);
+      border-radius: 12px;
+      box-shadow: 0 0 20px var(--glow-green);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #cadre-label {
+      position: absolute;
+      top: -34px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,26,15,0.8);
+      color: var(--vert-heegrek);
+      padding: 4px 14px;
+      border-radius: 6px;
+      font-size: 1rem;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
     #scan-bar {
       position: absolute;
-      left: 0;
       width: 100%;
-      height: 6px;
+      height: 4px;
       background: linear-gradient(to right, transparent, var(--vert-heegrek), transparent);
-      box-shadow: 0 0 20px var(--glow-green);
-      animation: scan-down 5s linear infinite;
+      box-shadow: 0 0 15px var(--glow-green);
+      animation: scan-down 6s linear infinite;
       pointer-events: none;
     }
 
@@ -125,129 +151,126 @@
 </head>
 <body>
 
-  <header>NICOLAXINE — LECTEUR DE BADGE SÉCURISÉ v2</header>
+  <header>NICOLAXINE — LECTEUR DE BADGE</header>
 
   <div class="container">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
+
+    <!-- CADRE FIXE VISIBLE AU CENTRE -->
+    <div id="cadre-scan">
+      <div id="cadre-label">PLACEZ VOTRE BADGE ICI</div>
+    </div>
+
     <div id="scan-bar"></div>
     <div id="info">PRÉSENTEZ VOTRE BADGE DEVANT LA CAMÉRA</div>
     <div id="overlay-message">ACCÈS AUTORISÉ</div>
   </div>
 
-  <script>
-    const video = document.getElementById('video');
-    const info = document.getElementById('info');
-    const overlayMsg = document.getElementById('overlay-message');
+<script>
+  const video = document.getElementById('video');
+  const info = document.getElementById('info');
+  const overlayMsg = document.getElementById('overlay-message');
 
-    let worker = null;
+  let stableCount = 0;
+  const STABLE_THRESHOLD = 20; // ~3 secondes à 150ms/frame
+  const QR_THRESHOLD = 0.50; // seuil plus haut pour éviter faux positifs
 
-    // Initialiser Tesseract
-    async function initTesseract() {
-      worker = await Tesseract.createWorker('fra', 1, {
-        workerPath: 'https://unpkg.com/tesseract.js@v5.1.0/dist/worker.min.js',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-        corePath: 'https://unpkg.com/tesseract.js-core@v5.1.0/tesseract-core.wasm.js',
-      });
-      info.textContent = "LECTEUR PRÊT — PRÉSENTEZ BADGE";
-    }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+    .then(stream => video.srcObject = stream)
+    .catch(err => info.textContent = "Caméra refusée : " + err.message);
 
-    // Démarrer caméra
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-      .then(stream => {
-        video.srcObject = stream;
-        initTesseract();
-      })
-      .catch(err => info.textContent = "Caméra refusée : " + err.message);
+  video.addEventListener('play', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
 
-    video.addEventListener('play', () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
+    setInterval(() => {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      setInterval(async () => {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Zone centrale petite
+      const sampleSize = 120;
+      const centerX = Math.floor(canvas.width / 2);
+      const centerY = Math.floor(canvas.height / 2);
+      const roi = ctx.getImageData(centerX - sampleSize/2, centerY - sampleSize/2, sampleSize, sampleSize);
 
-        // Zone centrale agrandie
-        const sampleSize = 220;
-        const centerX = Math.floor(canvas.width / 2);
-        const centerY = Math.floor(canvas.height / 2);
-        const roi = ctx.getImageData(centerX - sampleSize/2, centerY - sampleSize/2, sampleSize, sampleSize);
+      let darkPixels = 0;
+      let lightPixels = 0;
+      let greenScore = 0;
+      let yellowScore = 0;
+      const data = roi.data;
 
-        // 1. Détection couleur (tolérant)
-        let greenScore = 0;
-        let yellowScore = 0;
-        const data = roi.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+        const brightness = (r + g + b) / 3;
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i+1];
-          const b = data[i+2];
+        if (brightness < 80) darkPixels++;
+        if (brightness > 170) lightPixels++;
 
-          // Vert Heegrek : g dominant, tolérant
-          if (g > 120 && g > r * 1.2 && g > b * 1.2) greenScore++;
-          // Jaune Hiksse : r/g équilibrés, b faible
-          if (r > 150 && g > 130 && Math.abs(r - g) < 80 && b < 110) yellowScore++;
-        }
+        // Vert Heegrek
+        if (g > 110 && g > r + 25 && g > b + 25) greenScore++;
+        // Jaune Hiksse
+        if (r > 140 && g > 120 && Math.abs(r - g) < 80 && b < 120) yellowScore++;
+      }
 
-        const total = sampleSize * sampleSize;
-        const greenPct = greenScore / total;
-        const yellowPct = yellowScore / total;
-        console.log("Green % :", greenPct.toFixed(2), "Yellow % :", yellowPct.toFixed(2));
+      const total = sampleSize * sampleSize;
+      const qrScore = (darkPixels + lightPixels) / total;
+      const greenPct = greenScore / total;
+      const yellowPct = yellowScore / total;
 
-        // 2. OCR si couleur suffisante
-        let ocrText = "";
-        if (greenPct > 0.20 || yellowPct > 0.20) {
-          try {
-            const { data: { text } } = await worker.recognize(roi);
-            ocrText = text.toUpperCase().replace(/\s+/g, '');
-            console.log("Texte détecté :", ocrText);
-          } catch (err) {
-            console.error("OCR échoué :", err);
+      // Affichage live du score pour debug
+      info.textContent = "SCAN : QR " + qrScore.toFixed(2) + " | Vert " + greenPct.toFixed(2) + " | Jaune " + yellowPct.toFixed(2);
+
+      console.log("QR:", qrScore.toFixed(2), "Vert:", greenPct.toFixed(2), "Jaune:", yellowPct.toFixed(2));
+
+      if (qrScore > QR_THRESHOLD) {
+        stableCount++;
+
+        if (stableCount >= STABLE_THRESHOLD) {
+          // Différenciation réelle : couleur dominante
+          if (greenPct > yellowPct) {
+            info.textContent = "BADGE VERT — PR. HEEGREK — NIVEAU 4";
+            showAuthorized("PR. HEEGREK — ACCÈS NIVEAU 4 CONFIRMÉ", 'var(--vert-heegrek)');
+          } else {
+            info.textContent = "BADGE JAUNE — DR. HIKSSE — NIVEAU 3";
+            showAuthorized("DR. HIKSSE — ACCÈS NIVEAU 3 CONFIRMÉ", 'var(--jaune-hiksse)');
           }
+          stableCount = 0;
         }
+      } else {
+        stableCount = 0;
+      }
+    }, 150);
+  });
 
-        // 3. Décision : couleur + texte tolérant
-        if ((greenPct > 0.20 && (ocrText.includes("HEEGREG") || ocrText.includes("PROFESSEUR"))) || ocrText.includes("HEEGREK")) {
-          info.textContent = "BADGE DÉTECTÉ — PR. HEEGREK — NIVEAU 4";
-          info.style.color = 'var(--vert-heegrek)';
-          showAuthorized("PR. HEEGREK — ACCÈS NIVEAU 4 CONFIRMÉ", 'var(--vert-heegrek)');
-        }
-        else if ((yellowPct > 0.20 && (ocrText.includes("HIKSSE") || ocrText.includes("DOCTEUR"))) || ocrText.includes("HIKSSE")) {
-          info.textContent = "BADGE DÉTECTÉ — DR. HIKSSE — NIVEAU 3";
-          info.style.color = 'var(--jaune-hiksse)';
-          showAuthorized("DR. HIKSKSSE — ACCÈS NIVEAU 3 CONFIRMÉ", 'var(--jaune-hiksse)');
-        }
-      }, 600); // plus rapide pour feedback
-    });
+  function showAuthorized(message, color) {
+    overlayMsg.textContent = message;
+    overlayMsg.style.color = color;
+    overlayMsg.classList.add('visible');
 
-    function showAuthorized(message, color) {
-      overlayMsg.textContent = message;
-      overlayMsg.style.color = color;
-      overlayMsg.classList.add('visible');
+    const audio = new AudioContext();
+    const osc = audio.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, audio.currentTime);
+    osc.frequency.linearRampToValueAtTime(800, audio.currentTime + 0.3);
+    const gain = audio.createGain();
+    osc.connect(gain);
+    gain.connect(audio.destination);
+    gain.gain.setValueAtTime(0.25, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.6);
+    osc.start();
+    osc.stop(audio.currentTime + 0.6);
 
-      // Bip autorisation
-      const audio = new AudioContext();
-      const osc = audio.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, audio.currentTime);
-      osc.frequency.linearRampToValueAtTime(800, audio.currentTime + 0.3);
-      const gain = audio.createGain();
-      osc.connect(gain);
-      gain.connect(audio.destination);
-      gain.gain.setValueAtTime(0.25, audio.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.6);
-      osc.start();
-      osc.stop(audio.currentTime + 0.6);
-
+    setTimeout(() => {
+      overlayMsg.classList.remove('visible');
       setTimeout(() => {
-        overlayMsg.classList.remove('visible');
-        setTimeout(() => {
-          window.location.href = "http://freenicox.free.fr/Nicolaxine/ApplicationNicolaxine/Carte_Portail_Tri-DimensionnelOK.html";
-        }, 1500);
-      }, 3000);
-    }
-  </script>
+        window.location.href = "http://freenicox.free.fr/Nicolaxine/ApplicationNicolaxine/Carte_Portail_Tri-DimensionnelOK.html";
+      }, 1500);
+    }, 3000);
+  }
+</script>
 </body>
 </html>
